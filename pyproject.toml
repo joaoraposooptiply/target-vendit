@@ -29,6 +29,9 @@ dependencies = [
     "typing-extensions>=4.0.0",
 ]
 
+[project.scripts]
+target-vendit = "target_vendit:main"
+
 [project.optional-dependencies]
 dev = [
     "black>=22.0.0",
