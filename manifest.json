@@ -1,0 +1,34 @@
+{
+  "tap_stream_id": "pre_purchase_orders",
+  "stream": "pre_purchase_orders",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "productId": {
+        "type": "integer",
+        "description": "Product ID in Vendit system"
+      },
+      "amount": {
+        "type": "number",
+        "description": "Quantity/amount of the product"
+      },
+      "optiplyId": {
+        "type": "string",
+        "description": "External order ID (e.g., from Optiply)"
+      },
+      "creationDatetime": {
+        "type": "string",
+        "format": "date-time",
+        "description": "Creation timestamp of the order"
+      },
+      "sku": {
+        "type": "string",
+        "description": "Product SKU"
+      }
+    },
+    "required": ["productId", "amount"]
+  },
+  "key_properties": ["optiplyId"],
+  "replication_key": "creationDatetime",
+  "replication_method": "INCREMENTAL"
+}
