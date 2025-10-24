@@ -19,7 +19,7 @@ class TargetVendit(Target):
         Property("vendit_api_key", StringType, required=True, description="Vendit API key"),
         Property("username", StringType, required=True, description="Vendit username"),
         Property("password", StringType, required=True, description="Vendit password"),
-        Property("api_url", StringType, default="https://api2.vendit.online", description="Vendit API URL"),
+        Property("api_url", StringType, default="https://api.staging.vendit.online", description="Vendit API URL"),
         Property("batch_size", IntegerType, default=100, description="Batch size for processing records"),
     ).to_dict()
     
