@@ -30,7 +30,7 @@ class TargetVendit(Target):
     
     def get_sink(self, stream_name: str, schema: Dict[str, Any], key_properties: List[str]) -> PrePurchaseOrdersSink:
         """Get a sink for the given stream."""
-        if stream_name == "pre_purchase_orders":
+        if stream_name in ["BuyOrders", "pre_purchase_orders"]:
             return PrePurchaseOrdersSink(self, stream_name, schema, key_properties)
         else:
             raise ValueError(f"Unknown stream: {stream_name}")
@@ -44,16 +44,52 @@ class TargetVendit(Target):
             
         # Get or create sink for this stream
         if stream_name not in self._sinks:
-            # Create a default schema for pre_purchase_orders if not provided
-            if stream_name == "pre_purchase_orders":
+            # Create a default schema for BuyOrders/pre_purchase_orders if not provided
+            if stream_name in ["BuyOrders", "pre_purchase_orders"]:
                 schema = self._get_default_pre_purchase_orders_schema()
-                key_properties = ["productPreorderId"]
+                key_properties = ["optiplyId"]
                 self._sinks[stream_name] = self.get_sink(stream_name, schema, key_properties)
             else:
                 raise ValueError(f"Unknown stream: {stream_name}")
         
         sink = self._sinks[stream_name]
         sink.process_record(record, context)
+    
+    def _process_schema_message(self, message: Dict[str, Any]) -> None:
+        """Process a schema message."""
+        stream_name = message.get("stream")
+        if stream_name in ["BuyOrders", "pre_purchase_orders"]:
+            # Create sink for this stream if it doesn't exist
+            if stream_name not in self._sinks:
+                schema = message.get("schema", self._get_default_pre_purchase_orders_schema())
+                key_properties = message.get("key_properties", ["optiplyId"])
+                self._sinks[stream_name] = self.get_sink(stream_name, schema, key_properties)
+                self.logger.info(f"Created sink for stream: {stream_name}")
+        else:
+            self.logger.warning(f"Unknown stream in schema message: {stream_name}")
+    
+    def _assert_sink_exists(self, stream_name: str) -> None:
+        """Override to handle BuyOrders stream."""
+        if stream_name in ["BuyOrders", "pre_purchase_orders"]:
+            if stream_name not in self._sinks:
+                # Create sink automatically for supported streams
+                schema = self._get_default_pre_purchase_orders_schema()
+                key_properties = ["optiplyId"]
+                self._sinks[stream_name] = self.get_sink(stream_name, schema, key_properties)
+                self.logger.info(f"Auto-created sink for stream: {stream_name}")
+        else:
+            # Use the parent method for other streams
+            super()._assert_sink_exists(stream_name)
+    
+    def _process_record_message(self, message: Dict[str, Any]) -> None:
+        """Override to handle BuyOrders stream directly."""
+        stream_name = message.get("stream")
+        if stream_name in ["BuyOrders", "pre_purchase_orders"]:
+            # Process directly without stream mapping
+            self.process_record(message, {})
+        else:
+            # Use the parent method for other streams
+            super()._process_record_message(message)
     
     def _get_default_pre_purchase_orders_schema(self) -> Dict[str, Any]:
         """Get the default schema for pre-purchase orders."""

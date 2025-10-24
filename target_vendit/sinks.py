@@ -61,10 +61,8 @@ class PrePurchaseOrdersSink(Sink):
         """Preprocess a buy order with line items into Vendit format."""
         line_items = self._parse_json(record_data.get("line_items", []))
         
-        # Handle different date field names
-        placed_date = (
-            self._convert_datetime(record_data.get("placed"))
-        )
+        # Handle different date field names - use transaction_date from the Singer data
+        transaction_date = self._convert_datetime(record_data.get("transaction_date"))
         
         # Handle different ID field names
         buy_order_id = record_data.get("buyOrderId") or record_data.get("id")
@@ -79,8 +77,8 @@ class PrePurchaseOrdersSink(Sink):
             }
             
             # Add creationDatetime if available
-            if placed_date:
-                item["creationDatetime"] = placed_date
+            if transaction_date:
+                item["creationDatetime"] = transaction_date
                 
             items.append(item)
         
