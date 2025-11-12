@@ -1,0 +1,63 @@
+version: 1
+default_environment: dev
+project_id: target-vendit
+environments:
+- name: dev
+- name: staging  
+- name: prod
+
+plugins:
+  loaders:
+  - name: target-vendit
+    namespace: target_vendit
+    pip_url: -e .
+    executable: target-vendit
+    settings:
+    - name: vendit_api_key
+      kind: password
+      label: Vendit API Key
+      description: Your Vendit API key for authentication
+    - name: username
+      kind: string
+      label: Username
+      description: Your Vendit username
+    - name: password
+      kind: password
+      label: Password
+      description: Your Vendit password
+    - name: api_url
+      kind: string
+      label: API URL
+      description: Vendit API URL
+      default: https://api2.vendit.online
+    - name: batch_size
+      kind: integer
+      label: Batch Size
+      description: Number of records to process in each batch
+      default: 100
+
+environments:
+- name: dev
+  config:
+    plugins:
+      loaders:
+      - name: target-vendit
+        config:
+          api_url: https://api.staging.vendit.online
+          batch_size: 50
+- name: staging
+  config:
+    plugins:
+      loaders:
+      - name: target-vendit
+        config:
+          api_url: https://api.staging.vendit.online
+          batch_size: 100
+- name: prod
+  config:
+    plugins:
+      loaders:
+      - name: target-vendit
+        config:
+          api_url: https://api2.vendit.online
+          batch_size: 200

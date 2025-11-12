@@ -1,0 +1,7 @@
+{
+  "vendit_api_key": "your_api_key_here",
+  "username": "your_username_here",
+  "password": "your_password_here",
+  "api_url": "https://api2.vendit.online",
+  "batch_size": 100
+}
