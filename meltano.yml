@@ -30,6 +30,11 @@ plugins:
       label: API URL
       description: Vendit API URL
       default: https://api2.vendit.online
+    - name: oauth_url
+      kind: string
+      label: OAuth URL
+      description: Vendit OAuth URL for authentication
+      default: https://oauth.vendit.online/api/GetToken
     - name: batch_size
       kind: integer
       label: Batch Size
@@ -44,6 +49,7 @@ environments:
       - name: target-vendit
         config:
           api_url: https://api.staging.vendit.online
+          oauth_url: https://oauth.staging.vendit.online/api/GetToken
           batch_size: 50
 - name: staging
   config:
@@ -52,6 +58,7 @@ environments:
       - name: target-vendit
         config:
           api_url: https://api.staging.vendit.online
+          oauth_url: https://oauth.staging.vendit.online/api/GetToken
           batch_size: 100
 - name: prod
   config:
@@ -60,4 +67,5 @@ environments:
       - name: target-vendit
         config:
           api_url: https://api2.vendit.online
+          oauth_url: https://oauth.vendit.online/api/GetToken
           batch_size: 200

@@ -12,7 +12,8 @@ class VenditTargetClient:
     
     def __init__(self, config: Dict[str, Any]):
         """Initialize the client with configuration."""
-        self.api_url = config.get("api_url", "https://api.staging.vendit.online")
+        self.api_url = config.get("api_url", "https://api2.vendit.online")
+        self.oauth_url = config.get("oauth_url", "https://oauth.vendit.online/api/GetToken")
         self.api_key = config["vendit_api_key"]
         self.username = config["username"]
         self.password = config["password"]
@@ -21,8 +22,8 @@ class VenditTargetClient:
         
     def authenticate(self) -> str:
         """Authenticate with Vendit API and return auth token."""
-        # Use the correct OAuth endpoint for authentication
-        auth_url = "https://oauth.staging.vendit.online/api/GetToken"
+        # Use the configurable OAuth endpoint for authentication
+        auth_url = self.oauth_url
         
         # Use query parameters instead of JSON body
         auth_params = {
