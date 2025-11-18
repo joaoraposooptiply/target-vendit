@@ -41,39 +41,54 @@ class PrePurchaseOrdersSink(Sink):
         """Preprocess a record to match the Vendit API schema.
         
         This method transforms the incoming record into the format expected by the Vendit API.
-        Based on your example, it should handle cases like:
-        - Buy orders with line items
-        - Direct pre-purchase order records
-        - Various data structures from different sources
+        Handles BuyOrders with line_items by extracting each line item separately.
         """
         # Extract the actual record data from Singer format
         record_data = record.get("record", record)
         
-        # Handle different record structures
-        if "line_items" in record_data and ("buyOrderId" in record_data or "id" in record_data):
-            # This looks like a buy order with line items (similar to your example)
-            return self._preprocess_buy_order_with_lines(record_data)
-        else:
-            # This looks like a direct pre-purchase order record
-            return self._preprocess_direct_record(record_data)
+        # Check if this is a BuyOrder with line_items (primary use case)
+        if "line_items" in record_data and record_data.get("line_items"):
+            # Check if we have an id (BuyOrder id)
+            if "id" in record_data or "buyOrderId" in record_data:
+                # This is a buy order with line items - extract each line
+                return self._preprocess_buy_order_with_lines(record_data)
+        
+        # Fallback: direct pre-purchase order record
+        return self._preprocess_direct_record(record_data)
     
     def _preprocess_buy_order_with_lines(self, record_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Preprocess a buy order with line items into Vendit format."""
+        """Preprocess a buy order with line items into Vendit format.
+        
+        Extracts each line item and creates a separate item for the API.
+        Uses the BuyOrder id as optiplyId for all line items.
+        """
         line_items = self._parse_json(record_data.get("line_items", []))
         
         # Handle different date field names - use transaction_date from the Singer data
         transaction_date = self._convert_datetime(record_data.get("transaction_date"))
         
-        # Handle different ID field names
+        # Get the BuyOrder id - this goes into optiplyId for all line items
         buy_order_id = record_data.get("buyOrderId") or record_data.get("id")
         
-        # Create items array from line items
+        if not buy_order_id:
+            logger.warning("BuyOrder record missing id, skipping")
+            return {"items": []}
+        
+        # Create items array from line items - one item per line
         items = []
         for line in line_items:
+            product_id = line.get("product_remoteId")
+            quantity = line.get("quantity")
+            
+            # Skip line items missing required fields
+            if not product_id or quantity is None:
+                logger.warning(f"Skipping line item missing productId or quantity: {line}")
+                continue
+            
             item = {
-                "productId": line.get("product_remoteId"),
-                "amount": line.get("quantity"),
-                "optiplyId": str(buy_order_id)  # Convert to string as required by API
+                "productId": product_id,
+                "amount": quantity,
+                "optiplyId": str(buy_order_id)  # Use BuyOrder id as optiplyId
             }
             
             # Add creationDatetime if available
@@ -143,27 +158,73 @@ class PrePurchaseOrdersSink(Sink):
             return []
     
     def _convert_datetime(self, datetime_value) -> Optional[str]:
-        """Convert datetime value to ISO format string."""
+        """Convert datetime value to ISO format string with milliseconds precision.
+        
+        Converts datetime to format: YYYY-MM-DDTHH:mm:ss.sssZ
+        Normalizes microseconds (6 digits) to milliseconds (3 digits) if needed.
+        """
         if not datetime_value:
             return None
-            
-        if isinstance(datetime_value, str):
-            # Already a string, return as-is if it looks like ISO format
-            if "T" in datetime_value and ("Z" in datetime_value or "+" in datetime_value):
-                return datetime_value
-            # Try to parse and reformat
-            try:
-                from datetime import datetime
-                dt = datetime.fromisoformat(datetime_value.replace('Z', '+00:00'))
-                return dt.isoformat().replace('+00:00', 'Z')
-            except:
-                return datetime_value
         
-        # Handle datetime objects
+        from datetime import datetime
+        import re
+        
         try:
-            return datetime_value.isoformat().replace('+00:00', 'Z')
-        except:
-            return str(datetime_value)
+            if isinstance(datetime_value, str):
+                # Handle common case: YYYY-MM-DDTHH:mm:ss.XXXXXXZ
+                # Truncate microseconds to milliseconds
+                if datetime_value.endswith('Z') and '.' in datetime_value:
+                    # Pattern: YYYY-MM-DDTHH:mm:ss.XXXXXXZ
+                    match = re.match(r'(.+?)\.(\d{1,9})(Z|[\+\-]\d{2}:\d{2})$', datetime_value)
+                    if match:
+                        base, fractional, tz = match.groups()
+                        # Truncate to 3 digits (milliseconds)
+                        fractional = fractional[:3]
+                        return f"{base}.{fractional}Z" if tz == 'Z' else f"{base}.{fractional}{tz}"
+                
+                # Parse and reformat if needed
+                dt_str = datetime_value.replace('Z', '+00:00')
+                dt = datetime.fromisoformat(dt_str)
+            else:
+                # Assume it's a datetime object
+                dt = datetime_value
+            
+            # Format to ISO
+            iso_str = dt.isoformat()
+            
+            # Truncate microseconds to milliseconds if present
+            if '.' in iso_str:
+                parts = iso_str.split('.', 1)
+                fractional = parts[1]
+                
+                # Handle timezone in fractional part
+                if '+' in fractional:
+                    fractional_sec, tz_part = fractional.split('+', 1)
+                    iso_str = f"{parts[0]}.{fractional_sec[:3]}+{tz_part}"
+                elif '-' in fractional and len(fractional) > 3:
+                    # Check if there's a timezone (after position 3 to avoid date separators)
+                    tz_match = re.search(r'([\+\-]\d{2}:\d{2})$', fractional)
+                    if tz_match:
+                        fractional_sec = fractional[:tz_match.start()]
+                        tz_part = tz_match.group()
+                        iso_str = f"{parts[0]}.{fractional_sec[:3]}{tz_part}"
+                    else:
+                        iso_str = f"{parts[0]}.{fractional[:3]}"
+                else:
+                    iso_str = f"{parts[0]}.{fractional[:3]}"
+            
+            # Normalize UTC timezone to Z format
+            if '+00:00' in iso_str:
+                iso_str = iso_str.replace('+00:00', 'Z')
+            elif iso_str.endswith('+00:00'):
+                iso_str = iso_str[:-6] + 'Z'
+            
+            return iso_str
+            
+        except Exception as e:
+            logger.warning(f"Failed to convert datetime {datetime_value}: {e}, using as-is")
+            # Fallback: return as string if conversion fails
+            return str(datetime_value) if datetime_value else None
     
     def _process_batch(self) -> None:
         """Process the current batch of records."""
