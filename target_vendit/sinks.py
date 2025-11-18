@@ -31,11 +31,14 @@ class PrePurchaseOrdersSink(Sink):
         """Process a single record."""
         # Preprocess the record to transform it into the correct format
         preprocessed_record = self.preprocess_record(record, context)
-        if preprocessed_record:
+        if preprocessed_record and preprocessed_record.get("items"):
             self.batch.append(preprocessed_record)
+            logger.debug(f"Added record to batch. Batch size: {len(self.batch)}, Items in record: {len(preprocessed_record.get('items', []))}")
             
             if len(self.batch) >= self.max_size:
                 self._process_batch()
+        else:
+            logger.warning(f"Preprocessed record is empty or has no items, skipping: {preprocessed_record}")
     
     def preprocess_record(self, record: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
         """Preprocess a record to match the Vendit API schema.

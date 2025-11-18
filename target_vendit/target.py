@@ -38,10 +38,13 @@ class TargetVendit(Target):
     
     def process_record(self, record: Dict[str, Any], context: Dict[str, Any]) -> None:
         """Process a single record."""
+        # The parent class calls this with the record dict that has 'stream' and 'record' keys
         stream_name = record.get("stream")
         if not stream_name:
             self.logger.warning("Record missing stream name, skipping")
             return
+        
+        self.logger.debug(f"Processing record for stream: {stream_name}")
             
         # Get or create sink for this stream
         if stream_name not in self._sinks:
@@ -50,8 +53,10 @@ class TargetVendit(Target):
                 schema = self._get_default_pre_purchase_orders_schema()
                 key_properties = ["optiplyId"]
                 self._sinks[stream_name] = self.get_sink(stream_name, schema, key_properties)
+                self.logger.info(f"Created sink for stream: {stream_name}")
             else:
-                raise ValueError(f"Unknown stream: {stream_name}")
+                self.logger.warning(f"Unknown stream: {stream_name}, skipping")
+                return
         
         sink = self._sinks[stream_name]
         sink.process_record(record, context)
@@ -59,6 +64,7 @@ class TargetVendit(Target):
     def _process_schema_message(self, message: Dict[str, Any]) -> None:
         """Process a schema message."""
         stream_name = message.get("stream")
+        self.logger.info(f"Processing SCHEMA message for stream: {stream_name}")
         if stream_name in ["BuyOrders", "pre_purchase_orders"]:
             # Create sink for this stream if it doesn't exist
             if stream_name not in self._sinks:
@@ -66,6 +72,8 @@ class TargetVendit(Target):
                 key_properties = message.get("key_properties", ["optiplyId"])
                 self._sinks[stream_name] = self.get_sink(stream_name, schema, key_properties)
                 self.logger.info(f"Created sink for stream: {stream_name}")
+            else:
+                self.logger.debug(f"Sink already exists for stream: {stream_name}")
         else:
             self.logger.warning(f"Unknown stream in schema message: {stream_name}")
     
@@ -83,14 +91,20 @@ class TargetVendit(Target):
             super()._assert_sink_exists(stream_name)
     
     def _process_record_message(self, message: Dict[str, Any]) -> None:
-        """Override to handle BuyOrders stream directly."""
+        """Process record messages."""
         stream_name = message.get("stream")
+        self.logger.info(f"Received RECORD message for stream: {stream_name}")
+        
+        # Ensure sink exists - parent will call process_record which needs the sink
         if stream_name in ["BuyOrders", "pre_purchase_orders"]:
-            # Process directly without stream mapping
-            self.process_record(message, {})
-        else:
-            # Use the parent method for other streams
-            super()._process_record_message(message)
+            if stream_name not in self._sinks:
+                self.logger.info(f"Creating sink for stream: {stream_name} from RECORD message")
+                schema = self._get_default_pre_purchase_orders_schema()
+                key_properties = ["optiplyId"]
+                self._sinks[stream_name] = self.get_sink(stream_name, schema, key_properties)
+        
+        # Let parent class handle the message routing - it will call our process_record method
+        super()._process_record_message(message)
     
     def _get_default_pre_purchase_orders_schema(self) -> Dict[str, Any]:
         """Get the default schema for pre-purchase orders."""
