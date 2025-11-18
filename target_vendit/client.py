@@ -12,16 +12,33 @@ class VenditTargetClient:
     
     def __init__(self, config: Dict[str, Any]):
         """Initialize the client with configuration."""
+        logger.info("=" * 80)
+        logger.info("Initializing VenditTargetClient")
+        logger.info(f"Config keys: {list(config.keys())}")
         self.api_url = config.get("api_url", "https://api2.vendit.online")
         self.oauth_url = config.get("oauth_url", "https://oauth.vendit.online/api/GetToken")
-        self.api_key = config["vendit_api_key"]
-        self.username = config["username"]
-        self.password = config["password"]
+        self.api_key = config.get("vendit_api_key")
+        self.username = config.get("username")
+        self.password = config.get("password")
+        logger.info(f"API URL: {self.api_url}")
+        logger.info(f"OAuth URL: {self.oauth_url}")
+        logger.info(f"API Key present: {bool(self.api_key)}")
+        logger.info(f"Username present: {bool(self.username)}")
+        logger.info(f"Password present: {bool(self.password)}")
         self.session = requests.Session()
         self._auth_token = None
+        logger.info("VenditTargetClient initialized")
+        logger.info("=" * 80)
         
     def authenticate(self) -> str:
         """Authenticate with Vendit API and return auth token."""
+        logger.info("=" * 80)
+        logger.info("AUTHENTICATE called")
+        logger.info(f"OAuth URL: {self.oauth_url}")
+        logger.info(f"API Key present: {bool(self.api_key)}")
+        logger.info(f"Username present: {bool(self.username)}")
+        logger.info(f"Password present: {bool(self.password)}")
+        
         # Use the configurable OAuth endpoint for authentication
         auth_url = self.oauth_url
         
@@ -38,15 +55,25 @@ class VenditTargetClient:
             "ApiKey": self.api_key
         }
         
+        logger.info(f"Sending POST request to: {auth_url}")
+        logger.info(f"Auth params keys: {list(auth_params.keys())}")
+        logger.info(f"Auth headers keys: {list(auth_headers.keys())}")
+        
         try:
             response = self.session.post(auth_url, params=auth_params, headers=auth_headers)
+            logger.info(f"Authentication response status: {response.status_code}")
             response.raise_for_status()
             
             auth_data = response.json()
+            logger.info(f"Auth response keys: {list(auth_data.keys()) if isinstance(auth_data, dict) else 'not a dict'}")
             self._auth_token = auth_data.get("token")
             
             if not self._auth_token:
+                logger.error("No auth token in response")
+                logger.error(f"Full response: {auth_data}")
                 raise ValueError("No auth token received from API")
+            
+            logger.info(f"Auth token received (length: {len(self._auth_token) if self._auth_token else 0})")
                 
             # Set authorization header for future requests
             self.session.headers.update({
@@ -56,15 +83,20 @@ class VenditTargetClient:
             })
             
             logger.info("Successfully authenticated with Vendit API")
+            logger.info("=" * 80)
             return self._auth_token
             
         except requests.exceptions.RequestException as e:
             logger.error(f"Authentication failed: {e}")
             if hasattr(e, 'response') and e.response is not None:
+                logger.error(f"Response status: {e.response.status_code}")
+                logger.error(f"Response headers: {dict(e.response.headers)}")
                 logger.error(f"Response content: {e.response.text}")
+            logger.info("=" * 80)
             raise
         except Exception as e:
-            logger.error(f"Unexpected error during authentication: {e}")
+            logger.error(f"Unexpected error during authentication: {e}", exc_info=True)
+            logger.info("=" * 80)
             raise
     
     def import_pre_purchase_orders(self, pre_purchase_orders: list) -> Dict[str, Any]:
