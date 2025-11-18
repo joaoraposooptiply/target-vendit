@@ -46,8 +46,8 @@ class TargetVendit(Target):
     
     def _process_line(self, line: str) -> None:
         """Process a single line of input."""
-        logger.debug(f"_process_line called with line length: {len(line)}")
-        logger.debug(f"Line content (first 200 chars): {line[:200]}")
+        logger.info(f"_process_line called with line length: {len(line)}")
+        logger.info(f"Line content (first 500 chars): {line[:500]}")
         try:
             super()._process_line(line)
         except Exception as e:
