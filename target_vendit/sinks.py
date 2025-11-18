@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class PrePurchaseOrdersSink(Sink):
     """Sink for pre-purchase orders."""
     
-    name = "pre_purchase_orders"
+    name = "BuyOrders"
     
     def __init__(self, target, stream_name: str, schema: Dict[str, Any], key_properties: List[str]):
         """Initialize the sink."""
@@ -46,18 +46,16 @@ class PrePurchaseOrdersSink(Sink):
         This method transforms the incoming record into the format expected by the Vendit API.
         Handles BuyOrders with line_items by extracting each line item separately.
         """
-        # Extract the actual record data from Singer format
-        record_data = record.get("record", record)
-        
+        # The Singer SDK passes the record data directly (not wrapped in a message)
         # Check if this is a BuyOrder with line_items (primary use case)
-        if "line_items" in record_data and record_data.get("line_items"):
+        if "line_items" in record and record.get("line_items"):
             # Check if we have an id (BuyOrder id)
-            if "id" in record_data or "buyOrderId" in record_data:
+            if "id" in record or "buyOrderId" in record:
                 # This is a buy order with line items - extract each line
-                return self._preprocess_buy_order_with_lines(record_data)
+                return self._preprocess_buy_order_with_lines(record)
         
         # Fallback: direct pre-purchase order record
-        return self._preprocess_direct_record(record_data)
+        return self._preprocess_direct_record(record)
     
     def _preprocess_buy_order_with_lines(self, record_data: Dict[str, Any]) -> Dict[str, Any]:
         """Preprocess a buy order with line items into Vendit format.
