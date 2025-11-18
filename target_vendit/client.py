@@ -69,31 +69,41 @@ class VenditTargetClient:
     
     def import_pre_purchase_orders(self, pre_purchase_orders: list) -> Dict[str, Any]:
         """Import pre-purchase orders to Vendit API."""
+        logger.info(f"import_pre_purchase_orders called with {len(pre_purchase_orders)} items")
+        logger.info(f"First item sample: {pre_purchase_orders[0] if pre_purchase_orders else 'empty'}")
+        
         if not self._auth_token:
+            logger.info("No auth token, authenticating...")
             self.authenticate()
+        else:
+            logger.info("Using existing auth token")
             
         import_url = f"{self.api_url}/VenditPublicApi/PrePurchaseOrders/Import"
+        logger.info(f"Import URL: {import_url}")
         
         # Transform the data to match the API schema
         payload = {
             "items": pre_purchase_orders
         }
         
+        logger.info(f"Sending PUT request with payload containing {len(pre_purchase_orders)} items")
         try:
             response = self.session.put(import_url, json=payload)
+            logger.info(f"Response status code: {response.status_code}")
             response.raise_for_status()
             
             result = response.json()
-            logger.info(f"Successfully imported {len(pre_purchase_orders)} pre-purchase orders")
+            logger.info(f"Successfully imported {len(pre_purchase_orders)} pre-purchase orders. Response: {result}")
             return result
             
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to import pre-purchase orders: {e}")
             if hasattr(e, 'response') and e.response is not None:
+                logger.error(f"Response status: {e.response.status_code}")
                 logger.error(f"Response content: {e.response.text}")
             raise
         except Exception as e:
-            logger.error(f"Unexpected error during import: {e}")
+            logger.error(f"Unexpected error during import: {e}", exc_info=True)
             raise
     
     def close(self):
