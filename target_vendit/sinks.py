@@ -31,22 +31,24 @@ class PrePurchaseOrdersSink(Sink):
         return self.batch_size
     
     def process_record(self, record: Dict[str, Any], context: Dict[str, Any]) -> None:
-        """Process a single record."""
+        """Process a single record.
+        
+        Note: The SDK calls preprocess_record first and passes the result here.
+        So 'record' is already the preprocessed record.
+        """
         logger.info(f"process_record called for stream {self.stream_name}, record keys: {list(record.keys()) if isinstance(record, dict) else 'not a dict'}")
         
-        # Preprocess the record to transform it into the correct format
-        preprocessed_record = self.preprocess_record(record, context)
-        logger.info(f"Preprocessed record: {preprocessed_record}")
-        
-        if preprocessed_record and preprocessed_record.get("items"):
-            self.batch.append(preprocessed_record)
-            logger.info(f"Added record to batch. Batch size: {len(self.batch)}, Items in record: {len(preprocessed_record.get('items', []))}")
+        # The record is already preprocessed by the SDK calling preprocess_record
+        # Check if it has items to process
+        if record and record.get("items"):
+            self.batch.append(record)
+            logger.info(f"Added record to batch. Batch size: {len(self.batch)}, Items in record: {len(record.get('items', []))}")
             
             if len(self.batch) >= self.max_size:
                 logger.info(f"Batch size reached {self.max_size}, processing batch")
                 self._process_batch()
         else:
-            logger.warning(f"Preprocessed record is empty or has no items, skipping. Preprocessed: {preprocessed_record}")
+            logger.warning(f"Record is empty or has no items, skipping. Record: {record}")
     
     def preprocess_record(self, record: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
         """Preprocess a record to match the Vendit API schema.
