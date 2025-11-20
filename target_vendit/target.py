@@ -3,12 +3,13 @@
 from singer_sdk import typing as th
 from target_hotglue.target import TargetHotglue
 
-from target_vendit.sinks import PrePurchaseOrders
+from target_vendit.sinks import PrePurchaseOrders, BuyOrders
 
 
 class TargetVendit(TargetHotglue):
     SINK_TYPES = [
         PrePurchaseOrders,
+        BuyOrders,
     ]
     name = "target-vendit"
     config_jsonschema = th.PropertiesList(
@@ -18,8 +19,10 @@ class TargetVendit(TargetHotglue):
             default="https://api2.vendit.online",
             description="The base URL for the Vendit API service",
         ),
-        th.Property("token", th.StringType, required=True),
-        th.Property("api_key", th.StringType, required=True),
+        th.Property("token", th.StringType, required=False),
+        th.Property("api_key", th.StringType, required=False),
+        # Support alternative config field names from tap config
+        th.Property("vendit_api_key", th.StringType, required=False),
     ).to_dict()
 
     def validate_config(self) -> None:
