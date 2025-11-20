@@ -164,6 +164,8 @@ class PrePurchaseOrders(VenditSink):
         Builds the payload that will be sent to the API.
         Returns the payload dict.
         """
+        self.logger.info(f"[PREPROCESS] Received record for {self.name}: {json.dumps(record, indent=2)}")
+        
         items = []
         
         # Check if this is a BuyOrders record with line_items
@@ -210,7 +212,9 @@ class PrePurchaseOrders(VenditSink):
             return {"_skip": True, "error": "Missing productId or amount", "id": record.get("id")}
 
         # Return payload with items array
-        return {"items": items}
+        payload = {"items": items}
+        self.logger.info(f"[PREPROCESS] Built payload for {self.name}: {json.dumps(payload, indent=2)}")
+        return payload
 
     def upsert_record(self, record: dict, context: dict):
         """Upsert a record to Vendit API.
@@ -218,39 +222,53 @@ class PrePurchaseOrders(VenditSink):
         Receives the payload from preprocess_record and sends it to the API.
         Returns: (id, status, state_updates)
         """
-        self.logger.info(f"Processing {self.name} record: {record.get('id', 'unknown')}")
+        self.logger.info(f"[UPSERT] Processing {self.name} record")
+        self.logger.info(f"[UPSERT] Payload received: {json.dumps(record, indent=2)}")
+        self.logger.info(f"[UPSERT] Endpoint: {self.endpoint}")
+        self.logger.info(f"[UPSERT] Base URL: {self.base_url}")
+        self.logger.info(f"[UPSERT] Headers: {json.dumps(self.http_headers, indent=2)}")
         
         state_updates = dict()
         
         try:
             # Send PUT request to Vendit API using Hotglue's request_api method
+            self.logger.info(f"[UPSERT] Sending PUT request to {self.base_url}/{self.endpoint}")
             response = self.request_api(
                 "PUT",
                 endpoint=self.endpoint,
                 request_data=record
             )
+            self.logger.info(f"[UPSERT] Response status: {response.status_code}")
+            self.logger.info(f"[UPSERT] Response body: {response.text}")
             
             # Extract response ID if available
             response_id = None
             if response.status_code in [200, 201, 204]:
                 try:
                     response_data = response.json()
+                    self.logger.info(f"[UPSERT] Response JSON: {json.dumps(response_data, indent=2)}")
                     # Try to get ID from response, or from the first item's optiplyId
                     response_id = response_data.get("id")
                     if not response_id and isinstance(record.get("items"), list) and len(record.get("items", [])) > 0:
                         response_id = record["items"][0].get("optiplyId")
                 except (json.JSONDecodeError, AttributeError):
+                    self.logger.warning(f"[UPSERT] Could not parse response as JSON")
                     if isinstance(record.get("items"), list) and len(record.get("items", [])) > 0:
                         response_id = record["items"][0].get("optiplyId")
             
+            self.logger.info(f"[UPSERT] Returning: id={response_id}, status=True, state={state_updates}")
             return response_id, True, state_updates
 
         except requests.exceptions.RequestException as e:
-            self.logger.error(f"Error sending record to Vendit: {e}")
+            self.logger.error(f"[UPSERT] RequestException sending record to Vendit: {e}")
+            self.logger.error(f"[UPSERT] Exception type: {type(e).__name__}")
             state_updates["error"] = str(e)
             return None, False, state_updates
         except Exception as e:
-            self.logger.error(f"Unexpected error processing record: {e}")
+            self.logger.error(f"[UPSERT] Unexpected error processing record: {e}")
+            self.logger.error(f"[UPSERT] Exception type: {type(e).__name__}")
+            import traceback
+            self.logger.error(f"[UPSERT] Traceback: {traceback.format_exc()}")
             state_updates["error"] = str(e)
             return None, False, state_updates
 
