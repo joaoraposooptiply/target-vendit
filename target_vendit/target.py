@@ -12,6 +12,11 @@ class TargetVendit(TargetHotglue):
         BuyOrders,
     ]
     name = "target-vendit"
+    
+    def __init__(self, *args, **kwargs):
+        """Initialize the target with logging."""
+        super().__init__(*args, **kwargs)
+        self.logger.info(f"Target '{self.name}' initialized and ready to receive input")
     config_jsonschema = th.PropertiesList(
         th.Property(
             "api_url",

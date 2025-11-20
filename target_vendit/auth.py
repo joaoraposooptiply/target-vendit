@@ -26,7 +26,7 @@ class VenditAuthenticator:
     @property
     def api_key(self) -> str:
         """Get the API key from config."""
-        if not self._api_key:
+        if self._api_key is None:
             self._api_key = (
                 self.config.get("api_key") or self.config.get("vendit_api_key")
             )
@@ -39,7 +39,7 @@ class VenditAuthenticator:
     @property
     def token(self) -> str:
         """Get the OAuth token, fetching it if necessary."""
-        if not self._token:
+        if self._token is None:
             # First check if token is provided directly
             self._token = self.config.get("token")
             if not self._token:
