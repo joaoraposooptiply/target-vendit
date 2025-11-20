@@ -57,16 +57,32 @@ class TargetVendit(TargetHotglue):
 
     def _process_lines(self, file_input) -> None:
         """Process input lines and validate that data was received."""
+        import sys
+        
+        # Log input source for debugging
+        if file_input is sys.stdin:
+            if sys.stdin.isatty():
+                self.logger.warning("Reading from interactive terminal (stdin is a TTY). Expected input from pipe or file.")
+            else:
+                self.logger.info("Reading from stdin (piped input)")
+        else:
+            self.logger.info(f"Reading from file-like object: {type(file_input).__name__}")
+        
         try:
             super()._process_lines(file_input)
         finally:
             # After processing, check if any records were received
             if self._records_processed == 0:
-                self.logger.error("No singer records were received. Input file appears to be empty or contains no RECORD messages.")
-                raise ValueError(
-                    "No singer data received. The input file is empty or contains no RECORD messages. "
-                    "Please ensure you are piping singer-formatted data to the target."
+                error_msg = (
+                    "No singer data received. The input is empty or contains no RECORD messages. "
+                    "This usually means:\n"
+                    "1. The singer file was not piped to the target (e.g., 'cat data.singer | target-vendit --config config.json')\n"
+                    "2. The singer file exists but is empty\n"
+                    "3. The singer file contains only SCHEMA/STATE messages but no RECORD messages\n\n"
+                    f"Records processed: {self._records_processed}"
                 )
+                self.logger.error(error_msg)
+                raise ValueError(error_msg)
             else:
                 self.logger.info(f"Successfully processed {self._records_processed} record(s)")
 
