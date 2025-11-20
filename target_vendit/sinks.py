@@ -8,6 +8,7 @@ import requests
 from singer_sdk.plugin_base import PluginBase
 
 from target_hotglue.client import HotglueSink
+from target_vendit.auth import VenditAuthenticator
 
 
 class VenditSink(HotglueSink):
@@ -22,22 +23,9 @@ class VenditSink(HotglueSink):
     ) -> None:
         super().__init__(target, stream_name, schema, key_properties)
 
-        # Support both direct config and tap config field names
-        # If token is not provided, try using vendit_api_key as token
-        self.token = self.config.get("token") or self.config.get("vendit_api_key")
-        self.api_key = self.config.get("api_key") or self.config.get("vendit_api_key")
+        # Initialize authenticator
+        self.authenticator = VenditAuthenticator(self.config)
         
-        # Validate we have required credentials
-        if not self.token:
-            raise ValueError(
-                "Missing required 'token' or 'vendit_api_key' in config. "
-                "One of these must be provided."
-            )
-        if not self.api_key:
-            raise ValueError(
-                "Missing required 'api_key' or 'vendit_api_key' in config. "
-                "One of these must be provided."
-            )
         # Get api_url from config, default to production
         api_url = self.config.get("api_url", "https://api2.vendit.online")
         # Ensure it doesn't have trailing slash and append the API path
@@ -53,12 +41,8 @@ class VenditSink(HotglueSink):
         """Make a request to the Vendit API."""
         url = f"{self._api_base_url}/{endpoint}"
 
-        headers = {
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-            "Token": self.token,
-            "ApiKey": self.api_key,
-        }
+        # Get headers from authenticator
+        headers = self.authenticator.get_headers()
 
         self.logger.info(f"{method} {url}")
         if data:

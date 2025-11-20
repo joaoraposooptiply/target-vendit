@@ -23,6 +23,14 @@ class TargetVendit(TargetHotglue):
         th.Property("api_key", th.StringType, required=False),
         # Support alternative config field names from tap config
         th.Property("vendit_api_key", th.StringType, required=False),
+        th.Property("username", th.StringType, required=False),
+        th.Property("password", th.StringType, required=False),
+        th.Property(
+            "oauth_url",
+            th.StringType,
+            required=False,
+            description="The url for the Vendit OAuth token endpoint (optional, defaults to production if not provided)",
+        ),
     ).to_dict()
 
     def validate_config(self) -> None:
