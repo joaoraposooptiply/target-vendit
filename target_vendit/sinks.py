@@ -25,52 +25,29 @@ class VenditSink(HotglueSink):
 
         try:
             # Initialize authenticator (lazy - won't fetch token until needed)
-            self.authenticator = VenditAuthenticator(self.config)
+            self._authenticator = VenditAuthenticator(self.config)
         except Exception as e:
             self.logger.warning(f"Failed to initialize authenticator: {e}. Will retry when making requests.")
-            self.authenticator = None
-        
-        # Get api_url from config, default to production
-        api_url = self.config.get("api_url", "https://api2.vendit.online")
-        # Ensure it doesn't have trailing slash and append the API path
-        api_url = api_url.rstrip("/")
-        self._api_base_url = f"{api_url}/VenditPublicApi"
+            self._authenticator = None
         
         self.logger.info(f"Initialized {self.__class__.__name__} sink for stream '{stream_name}'")
 
-    def _make_request(
-        self,
-        method: str,
-        endpoint: str,
-        data: Optional[Dict] = None,
-    ) -> requests.Response:
-        """Make a request to the Vendit API."""
-        url = f"{self._api_base_url}/{endpoint}"
+    @property
+    def base_url(self) -> str:
+        """Get the base URL for the Vendit API."""
+        api_url = self.config.get("api_url", "https://api2.vendit.online")
+        api_url = api_url.rstrip("/")
+        return f"{api_url}/VenditPublicApi"
 
+    @property
+    def http_headers(self) -> Dict[str, str]:
+        """Get HTTP headers for API requests."""
         # Initialize authenticator if not already done
-        if self.authenticator is None:
-            self.authenticator = VenditAuthenticator(self.config)
+        if self._authenticator is None:
+            self._authenticator = VenditAuthenticator(self.config)
         
         # Get headers from authenticator
-        headers = self.authenticator.get_headers()
-
-        self.logger.info(f"{method} {url}")
-        if data:
-            self.logger.info(f"Payload: {json.dumps(data, indent=2)}")
-
-        response = requests.request(
-            method=method,
-            url=url,
-            headers=headers,
-            json=data,
-        )
-
-        self.logger.info(f"Response Status: {response.status_code}")
-        if response.status_code not in [200, 201, 204]:
-            self.logger.error(f"Error response: {response.text}")
-            response.raise_for_status()
-
-        return response
+        return self._authenticator.get_headers()
 
     def preprocess_record(self, record: dict, context: dict) -> dict:
         """Preprocess record before sending."""
@@ -181,113 +158,101 @@ class PrePurchaseOrders(VenditSink):
 
         return item
 
-    def upsert_record(self, record: dict, context: dict):
-        """Upsert a record to Vendit API."""
-        self.logger.info(f"Processing {self.name} record: {record.get('id', 'unknown')}")
+    def preprocess_record(self, record: dict, context: dict) -> dict:
+        """Preprocess record before sending.
         
-        # Ensure state is initialized before any operations
-        if not hasattr(self, 'latest_state') or not self.latest_state:
-            if hasattr(self, 'init_state'):
-                self.init_state()
+        Builds the payload that will be sent to the API.
+        Returns the payload dict.
+        """
+        items = []
         
-        # Preprocess the record
-        preprocessed_record = self.preprocess_record(record, context)
-        
-        # If preprocessing failed (returned None or skip marker), skip this record
-        if preprocessed_record is None or preprocessed_record.get("_skip"):
-            error_msg = preprocessed_record.get("error", f"Skipping {self.name} record as preprocessing failed") if preprocessed_record else f"Skipping {self.name} record as preprocessing failed"
-            record_id = preprocessed_record.get("id") if preprocessed_record else record.get("id")
-            state = {"success": False, "error": error_msg}
-            if record_id:
-                state["id"] = record_id
-            if hasattr(self, 'update_state'):
-                self.update_state(state)
-            return None, False, {"error": error_msg}
-        
-        # Use preprocessed record for processing
-        record = preprocessed_record
-        
-        status = True
-        state_updates = dict()
-
-        try:
-            items = []
+        # Check if this is a BuyOrders record with line_items
+        if "line_items" in record and record.get("line_items"):
+            # Parse line_items JSON string
+            line_items_str = record.get("line_items")
+            if isinstance(line_items_str, str):
+                try:
+                    line_items = json.loads(line_items_str)
+                except json.JSONDecodeError as e:
+                    self.logger.error(f"Failed to parse line_items JSON: {e}")
+                    # Return skip marker
+                    return {"_skip": True, "error": f"Invalid line_items JSON: {e}", "id": record.get("id")}
+            else:
+                line_items = line_items_str
             
-            # Check if this is a BuyOrders record with line_items
-            if "line_items" in record and record.get("line_items"):
-                # Parse line_items JSON string
-                line_items_str = record.get("line_items")
-                if isinstance(line_items_str, str):
-                    try:
-                        line_items = json.loads(line_items_str)
-                    except json.JSONDecodeError as e:
-                        self.logger.error(f"Failed to parse line_items JSON: {e}")
-                        state_updates["success"] = False
-                        state_updates["error"] = f"Invalid line_items JSON: {e}"
-                        return None, False, state_updates
-                else:
-                    line_items = line_items_str
-                
-                # Create an item for each line_item
-                if isinstance(line_items, list):
-                    for line_item in line_items:
-                        item = self._format_item_from_line_item(line_item, record)
-                        if "productId" in item and "amount" in item:
-                            items.append(item)
-                        else:
-                            self.logger.warning(
-                                f"Line item missing required fields, skipping: {line_item}"
-                            )
-                else:
-                    # Single line item
-                    item = self._format_item_from_line_item(line_items, record)
+            # Create an item for each line_item
+            if isinstance(line_items, list):
+                for line_item in line_items:
+                    item = self._format_item_from_line_item(line_item, record)
                     if "productId" in item and "amount" in item:
                         items.append(item)
+                    else:
+                        self.logger.warning(
+                            f"Line item missing required fields, skipping: {line_item}"
+                        )
             else:
-                # Regular PrePurchaseOrders format
-                item = self._format_item(record)
+                # Single line item
+                item = self._format_item_from_line_item(line_items, record)
                 if "productId" in item and "amount" in item:
                     items.append(item)
+        else:
+            # Regular PrePurchaseOrders format
+            item = self._format_item(record)
+            if "productId" in item and "amount" in item:
+                items.append(item)
 
-            # Validate we have at least one valid item
-            if not items:
-                self.logger.warning(
-                    f"Record missing required fields (productId, amount), skipping: {record}"
-                )
-                state_updates["success"] = False
-                state_updates["error"] = "Missing productId or amount"
-                return None, False, state_updates
+        # Validate we have at least one valid item
+        if not items:
+            self.logger.warning(
+                f"Record missing required fields (productId, amount), skipping: {record}"
+            )
+            # Return skip marker
+            return {"_skip": True, "error": "Missing productId or amount", "id": record.get("id")}
 
-            # Prepare payload with items array
-            payload = {"items": items}
+        # Return payload with items array
+        return {"items": items}
 
-            # Send PUT request to Vendit API
-            response = self._make_request("PUT", self.endpoint, data=payload)
-
+    def upsert_record(self, record: dict, context: dict):
+        """Upsert a record to Vendit API.
+        
+        Receives the payload from preprocess_record and sends it to the API.
+        Returns: (id, status, state_updates)
+        """
+        self.logger.info(f"Processing {self.name} record: {record.get('id', 'unknown')}")
+        
+        state_updates = dict()
+        
+        try:
+            # Send PUT request to Vendit API using Hotglue's request_api method
+            response = self.request_api(
+                "PUT",
+                endpoint=self.endpoint,
+                request_data=record
+            )
+            
             # Extract response ID if available
             response_id = None
             if response.status_code in [200, 201, 204]:
                 try:
                     response_data = response.json()
-                    response_id = response_data.get("id") or items[0].get("optiplyId")
+                    # Try to get ID from response, or from the first item's optiplyId
+                    response_id = response_data.get("id")
+                    if not response_id and isinstance(record.get("items"), list) and len(record.get("items", [])) > 0:
+                        response_id = record["items"][0].get("optiplyId")
                 except (json.JSONDecodeError, AttributeError):
-                    response_id = items[0].get("optiplyId") if items else None
-
-            state_updates["success"] = True
-            return response_id, status, state_updates
+                    if isinstance(record.get("items"), list) and len(record.get("items", [])) > 0:
+                        response_id = record["items"][0].get("optiplyId")
+            
+            return response_id, True, state_updates
 
         except requests.exceptions.RequestException as e:
             self.logger.error(f"Error sending record to Vendit: {e}")
-            state_updates["success"] = False
             state_updates["error"] = str(e)
-            status = False
-            return None, status, state_updates
+            return None, False, state_updates
         except Exception as e:
             self.logger.error(f"Unexpected error processing record: {e}")
-            state_updates["success"] = False
             state_updates["error"] = str(e)
-            status = False
-            return None, status, state_updates
+            return None, False, state_updates
 
 
 class BuyOrders(PrePurchaseOrders):
