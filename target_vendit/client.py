@@ -1,17 +1,17 @@
 """Vendit API client for target operations."""
 
 import requests
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import logging
 from singer_sdk.plugin_base import PluginBase
-from singer_sdk.sinks import Sink
+from target_hotglue.client import HotglueSink
 
 from .auth import VenditAuthenticator
 
 logger = logging.getLogger(__name__)
 
 
-class VenditSink(Sink):
+class VenditSink(HotglueSink):
     """Base sink class for Vendit API operations."""
 
     def __init__(
@@ -19,12 +19,11 @@ class VenditSink(Sink):
         target: PluginBase,
         stream_name: str,
         schema: Dict,
-        key_properties: Optional[list],
+        key_properties: Optional[List[str]],
     ) -> None:
         """Initialize target sink."""
-        super().__init__(target, stream_name, schema, key_properties)
         self._target = target
-        self.config = target.config
+        super().__init__(target, stream_name, schema, key_properties)
         self.auth_state = {}
 
     @property

@@ -1,97 +1,40 @@
-[build-system]
-requires = ["setuptools>=45", "wheel", "setuptools-scm[toml]>=6.2"]
-build-backend = "setuptools.build_meta"
-
-[project]
+[tool.poetry]
 name = "target-vendit"
-version = "0.1.0"
-description = "Singer target for Vendit API"
-authors = [
-    {name = "Your Name", email = "your.email@example.com"},
+version = "0.0.1"
+description = "`target-vendit` is a Singer target for Vendit, built with the Meltano SDK for Singer Targets."
+authors = ["Optiply"]
+keywords = [
+    "ELT",
+    "Vendit",
 ]
-readme = "README.md"
-requires-python = ">=3.8"
-classifiers = [
-    "Development Status :: 4 - Beta",
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: Apache Software License",
-    "Operating System :: OS Independent",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-]
-dependencies = [
-    "singer-sdk>=0.34.0",
-    "requests>=2.28.0",
-    "typing-extensions>=4.0.0",
-]
+license = "Apache 2.0"
 
-[project.scripts]
-target-vendit = "target_vendit:main"
+[tool.poetry.dependencies]
+python = "<3.11,>=3.7.1"
+requests = "^2.25.1"
+singer-sdk = "^0.9.0"
+target-hotglue = "^0.0.2"
 
-[project.optional-dependencies]
-dev = [
-    "black>=22.0.0",
-    "isort>=5.10.0",
-    "mypy>=1.0.0",
-    "flake8>=5.0.0",
-]
-
-[project.urls]
-Homepage = "https://github.com/your-org/target-vendit"
-Documentation = "https://github.com/your-org/target-vendit#readme"
-Repository = "https://github.com/your-org/target-vendit.git"
-Issues = "https://github.com/your-org/target-vendit/issues"
-
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["target_vendit*"]
-
-
-[tool.black]
-line-length = 88
-target-version = ['py38']
-include = '\.pyi?$'
-extend-exclude = '''
-/(
-  # directories
-  \.eggs
-  | \.git
-  | \.hg
-  | \.mypy_cache
-  | \.tox
-  | \.venv
-  | build
-  | dist
-)/
-'''
+[tool.poetry.dev-dependencies]
+pytest = "^6.2.5"
+tox = "^3.24.4"
+flake8 = "^3.9.2"
+black = "^21.9b0"
+pydocstyle = "^6.1.1"
+mypy = "^0.910"
+types-requests = "^2.26.1"
+isort = "^5.10.1"
 
 [tool.isort]
 profile = "black"
-multi_line_output = 3
-line_length = 88
-known_first_party = ["target_vendit"]
+multi_line_output = 3 # Vertical Hanging Indent
+src_paths = "target_vendit"
 
-[tool.mypy]
-python_version = "3.8"
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
-check_untyped_defs = true
-disallow_untyped_decorators = true
-no_implicit_optional = true
-warn_redundant_casts = true
-warn_unused_ignores = true
-warn_no_return = true
-warn_unreachable = true
-strict_equality = true
+[build-system]
+requires = ["poetry-core==1.0.8"]
+build-backend = "poetry.core.masonry.api"
 
-[[tool.mypy.overrides]]
-module = [
-    "singer_sdk.*",
-]
-ignore_missing_imports = true
+[tool.poetry.scripts]
+# CLI declaration
+target-vendit = 'target_vendit.target:TargetVendit.cli'
+
