@@ -72,58 +72,6 @@ class VenditSink(HotglueSink):
 
         return response
 
-    def process_record(self, record: dict, context: dict):
-        """Override Hotglue SDK's process_record to ensure proper state initialization."""
-        # Ensure state is initialized before any operations
-        if not hasattr(self, 'latest_state') or not self.latest_state:
-            if hasattr(self, 'init_state'):
-                self.init_state()
-        
-        try:
-            # First, preprocess the record
-            preprocessed_record = self.preprocess_record(record, context)
-            
-            # If preprocessing failed (returned None or skip marker), skip this record
-            if preprocessed_record is None or preprocessed_record.get("_skip"):
-                error_msg = preprocessed_record.get("error", f"Skipping {self.name} record as preprocessing failed") if preprocessed_record else f"Skipping {self.name} record as preprocessing failed"
-                record_id = preprocessed_record.get("id") if preprocessed_record else record.get("id")
-                state = {"success": False, "error": error_msg}
-                if record_id:
-                    state["id"] = record_id
-                if hasattr(self, 'update_state'):
-                    self.update_state(state)
-                return None, False, {"error": error_msg}
-            
-            # Then, upsert the preprocessed record
-            result = self.upsert_record(preprocessed_record, context)
-            
-            # Update state based on the result
-            if result and len(result) >= 2 and result[1]:  # result[1] is the success flag
-                record_id = result[0] if result[0] else "unknown"
-                state = {"success": True, "id": record_id}
-                if hasattr(self, 'update_state'):
-                    self.update_state(state)
-                self.logger.info(f"{self.name} processed id: {record_id}")
-            elif result and len(result) >= 3:
-                # Update state with failure
-                error_msg = result[2].get("error", "Unknown error") if isinstance(result[2], dict) else "Unknown error"
-                state = {"success": False, "error": error_msg}
-                if preprocessed_record.get("id"):
-                    state["id"] = preprocessed_record.get("id")
-                if hasattr(self, 'update_state'):
-                    self.update_state(state)
-            
-            return result
-            
-        except Exception as e:
-            self.logger.error(f"Error processing {self.name} record: {e}")
-            state = {"success": False, "error": str(e)}
-            if record and record.get("id"):
-                state["id"] = record.get("id")
-            if hasattr(self, 'update_state'):
-                self.update_state(state)
-            return None, False, {"error": str(e)}
-
     def preprocess_record(self, record: dict, context: dict) -> dict:
         """Preprocess record before sending."""
         return record
@@ -236,6 +184,29 @@ class PrePurchaseOrders(VenditSink):
     def upsert_record(self, record: dict, context: dict):
         """Upsert a record to Vendit API."""
         self.logger.info(f"Processing {self.name} record: {record.get('id', 'unknown')}")
+        
+        # Ensure state is initialized before any operations
+        if not hasattr(self, 'latest_state') or not self.latest_state:
+            if hasattr(self, 'init_state'):
+                self.init_state()
+        
+        # Preprocess the record
+        preprocessed_record = self.preprocess_record(record, context)
+        
+        # If preprocessing failed (returned None or skip marker), skip this record
+        if preprocessed_record is None or preprocessed_record.get("_skip"):
+            error_msg = preprocessed_record.get("error", f"Skipping {self.name} record as preprocessing failed") if preprocessed_record else f"Skipping {self.name} record as preprocessing failed"
+            record_id = preprocessed_record.get("id") if preprocessed_record else record.get("id")
+            state = {"success": False, "error": error_msg}
+            if record_id:
+                state["id"] = record_id
+            if hasattr(self, 'update_state'):
+                self.update_state(state)
+            return None, False, {"error": error_msg}
+        
+        # Use preprocessed record for processing
+        record = preprocessed_record
+        
         status = True
         state_updates = dict()
 
