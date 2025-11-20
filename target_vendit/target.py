@@ -18,8 +18,8 @@ class TargetVendit(TargetHotglue):
             default="https://api2.vendit.online",
             description="The base URL for the Vendit API service",
         ),
-        th.Property("token", th.StringType, required=True, secret=True),
-        th.Property("api_key", th.StringType, required=True, secret=True),
+        th.Property("token", th.StringType, required=True),
+        th.Property("api_key", th.StringType, required=True),
     ).to_dict()
 
     def validate_config(self) -> None:
