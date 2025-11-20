@@ -17,6 +17,7 @@ class TargetVendit(TargetHotglue):
         """Initialize the target with logging."""
         super().__init__(*args, **kwargs)
         self._records_processed = 0
+        self._messages_received = 0  # Track total messages (SCHEMA, STATE, RECORD)
         self.logger.info(f"Target '{self.name}' initialized and ready to receive input")
     config_jsonschema = th.PropertiesList(
         th.Property(
@@ -50,9 +51,16 @@ class TargetVendit(TargetHotglue):
 
     def _process_singer_message(self, message: dict) -> None:
         """Process a singer message and track record count."""
-        # Track RECORD messages
-        if message.get("type") == "RECORD":
+        # Track all messages
+        msg_type = message.get("type")
+        if msg_type:
+            self._messages_received += 1
+            self.logger.debug(f"Received {msg_type} message")
+        
+        # Track RECORD messages specifically
+        if msg_type == "RECORD":
             self._records_processed += 1
+        
         super()._process_singer_message(message)
 
     def _process_lines(self, file_input) -> None:
@@ -71,20 +79,26 @@ class TargetVendit(TargetHotglue):
         try:
             super()._process_lines(file_input)
         finally:
-            # After processing, check if any records were received
-            if self._records_processed == 0:
+            # After processing, check what we received
+            if self._messages_received == 0:
+                # No messages at all - input is completely empty (file not piped or empty file)
                 error_msg = (
-                    "No singer data received. The input is empty or contains no RECORD messages. "
-                    "This usually means:\n"
-                    "1. The singer file was not piped to the target (e.g., 'cat data.singer | target-vendit --config config.json')\n"
-                    "2. The singer file exists but is empty\n"
-                    "3. The singer file contains only SCHEMA/STATE messages but no RECORD messages\n\n"
-                    f"Records processed: {self._records_processed}"
+                    "No singer data received. The input is completely empty (0 messages). "
+                    "This means the singer file was not piped to the target's stdin.\n"
+                    "Expected: 'cat data.singer | target-vendit --config config.json'\n"
+                    f"Messages received: {self._messages_received}, Records processed: {self._records_processed}"
                 )
                 self.logger.error(error_msg)
                 raise ValueError(error_msg)
             else:
-                self.logger.info(f"Successfully processed {self._records_processed} record(s)")
+                # We got some messages - log summary
+                if self._records_processed > 0:
+                    self.logger.info(f"Successfully processed {self._records_processed} record(s) from {self._messages_received} message(s)")
+                else:
+                    self.logger.info(
+                        f"Received {self._messages_received} message(s) (SCHEMA/STATE) but no RECORD messages. "
+                        "This is normal if there's no new data to sync."
+                    )
 
 
 if __name__ == "__main__":
