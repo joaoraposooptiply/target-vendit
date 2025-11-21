@@ -109,7 +109,12 @@ class BuyOrders(VenditSink):
 
     def preprocess_record(self, record: dict, context: dict) -> dict:
         """Build the payload for BuyOrders from line_items."""
-        self.logger.info(f"[BuyOrders] Received record: {json.dumps(record, indent=2)}")
+        # Log record safely (handle datetime objects)
+        try:
+            record_str = json.dumps(record, indent=2, default=str)
+            self.logger.info(f"[BuyOrders] Received record: {record_str}")
+        except Exception as e:
+            self.logger.info(f"[BuyOrders] Received record (keys: {list(record.keys())})")
         
         items = []
 
