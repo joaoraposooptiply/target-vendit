@@ -152,16 +152,11 @@ class BuyOrders(VenditSink):
             return None, False, state_updates
 
         try:
-            self.logger.info(f"[BuyOrders] Sending request to {self.endpoint} with payload: {json.dumps(record, indent=2, default=str)}")
-            
             response = self.request_api(
                 "PUT",
                 endpoint=self.endpoint,
                 request_data=record
             )
-
-            self.logger.info(f"[BuyOrders] API response status: {response.status_code}")
-            self.logger.info(f"[BuyOrders] API response body: {response.text[:500]}")  # First 500 chars
 
             # Extract response ID
             response_id = None
@@ -169,59 +164,20 @@ class BuyOrders(VenditSink):
                 try:
                     response_data = response.json()
                     response_id = response_data.get("id")
-                    self.logger.info(f"[BuyOrders] Extracted response_id: {response_id}")
                 except (json.JSONDecodeError, AttributeError):
                     pass
 
                 # Fallback to optiplyId from first item
                 if not response_id and record.get("items") and len(record["items"]) > 0:
                     response_id = record["items"][0].get("optiplyId")
-                    self.logger.info(f"[BuyOrders] Using optiplyId as response_id: {response_id}")
 
             return response_id, True, state_updates
             
         except FatalAPIError as e:
-            # Extract response details from the exception
-            error_msg = str(e) or repr(e)
-            self.logger.error(f"[BuyOrders] FatalAPIError: {error_msg}")
-            
-            # Log all exception attributes for debugging
-            self.logger.error(f"[BuyOrders] Exception attributes: {dir(e)}")
-            self.logger.error(f"[BuyOrders] Exception __dict__: {getattr(e, '__dict__', {})}")
-            
-            # Try multiple ways to get response information
-            response = None
-            if hasattr(e, 'response') and e.response is not None:
-                response = e.response
-            elif hasattr(e, '_response') and e._response is not None:
-                response = e._response
-            elif hasattr(e, 'args') and len(e.args) > 0:
-                # Sometimes response is passed as first arg
-                for arg in e.args:
-                    if hasattr(arg, 'status_code'):
-                        response = arg
-                        break
-            
-            if response:
-                self.logger.error(f"[BuyOrders] API response status: {response.status_code}")
-                self.logger.error(f"[BuyOrders] API response headers: {dict(response.headers)}")
-                try:
-                    self.logger.error(f"[BuyOrders] API response body: {response.text[:2000]}")
-                except Exception:
-                    self.logger.error(f"[BuyOrders] Could not read response body")
-            elif hasattr(e, 'status_code'):
-                self.logger.error(f"[BuyOrders] API response status: {e.status_code}")
-            else:
-                self.logger.error(f"[BuyOrders] Could not extract response details from exception")
-            
-            import traceback
-            self.logger.error(f"[BuyOrders] Traceback: {traceback.format_exc()}")
-            state_updates["error"] = error_msg
+            state_updates["error"] = str(e)
             return None, False, state_updates
         except Exception as e:
-            self.logger.error(f"[BuyOrders] Unexpected error sending record to API: {type(e).__name__}: {str(e)}")
-            import traceback
-            self.logger.error(f"[BuyOrders] Traceback: {traceback.format_exc()}")
+            self.logger.error(f"[BuyOrders] Unexpected error: {type(e).__name__}: {str(e)}")
             state_updates["error"] = str(e)
             return None, False, state_updates
 
@@ -229,21 +185,12 @@ class BuyOrders(VenditSink):
         """Build the payload for BuyOrders from line_items."""
         # If record already has 'items', it's already been preprocessed - return as-is
         if "items" in record and "line_items" not in record:
-            self.logger.info("[BuyOrders] Record already preprocessed, returning as-is")
             return record
-        
-        # Log record safely (handle datetime objects)
-        try:
-            record_str = json.dumps(record, indent=2, default=str)
-            self.logger.info(f"[BuyOrders] Received record: {record_str}")
-        except Exception as e:
-            self.logger.info(f"[BuyOrders] Received record (keys: {list(record.keys())})")
         
         items = []
 
         # Parse line_items
         line_items = record.get("line_items")
-        self.logger.info(f"[BuyOrders] line_items value: {line_items}, type: {type(line_items)}")
         
         # Check if line_items exists
         if line_items is None:
@@ -253,11 +200,9 @@ class BuyOrders(VenditSink):
         # Parse if it's a string
         if isinstance(line_items, str):
             if not line_items.strip():  # Empty string
-                self.logger.info("Skipping order with empty line_items string")
                 return None
             try:
                 line_items = json.loads(line_items)
-                self.logger.info(f"[BuyOrders] Parsed line_items: {json.dumps(line_items, indent=2)}")
             except json.JSONDecodeError as e:
                 self.logger.error(f"Failed to parse line_items JSON: {e}")
                 return None

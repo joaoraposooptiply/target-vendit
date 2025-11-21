@@ -21,7 +21,6 @@ class VenditSink(HotglueSink):
         key_properties: Optional[List[str]],
     ) -> None:
         """Initialize target sink."""
-        self._target = target
         super().__init__(target, stream_name, schema, key_properties)
 
         try:
@@ -39,11 +38,6 @@ class VenditSink(HotglueSink):
         api_url = self.config.get("api_url", "https://api2.vendit.online")
         api_url = api_url.rstrip("/")
         return f"{api_url}/VenditPublicApi"
-    
-    @property
-    def url_base(self) -> str:
-        """Alias for base_url in case parent class uses this property name."""
-        return self.base_url
 
     @property
     def http_headers(self) -> Dict[str, str]:
@@ -90,9 +84,6 @@ class VenditSink(HotglueSink):
         if headers:
             request_headers.update(headers)
         
-        self.logger.info(f"[{self.__class__.__name__}] Making {method} request to: {full_url}")
-        self.logger.info(f"[{self.__class__.__name__}] Headers: {dict(request_headers)}")
-        
         # Make the request directly to ensure correct URL
         try:
             if method.upper() == "GET":
@@ -108,31 +99,16 @@ class VenditSink(HotglueSink):
             else:
                 raise ValueError(f"Unsupported HTTP method: {method}")
             
-            # Log the actual request URL
-            self.logger.info(f"[{self.__class__.__name__}] Actual request URL: {response.request.url}")
-            self.logger.info(f"[{self.__class__.__name__}] Response status: {response.status_code}")
-            
             # Validate response (this will raise FatalAPIError if needed)
             self.validate_response(response)
             
             return response
             
         except requests.exceptions.RequestException as e:
-            self.logger.error(f"[{self.__class__.__name__}] Request failed: {e}")
             raise FatalAPIError(f"Request to {full_url} failed: {e}") from e
 
     def validate_response(self, response: requests.Response) -> None:
-        """Validate API response and log details before raising errors."""
-        # Log response details for debugging
-        self.logger.info(f"[{self.__class__.__name__}] API response status: {response.status_code}")
-        self.logger.info(f"[{self.__class__.__name__}] API response headers: {dict(response.headers)}")
-        
-        try:
-            response_text = response.text[:2000]  # First 2000 chars
-            self.logger.info(f"[{self.__class__.__name__}] API response body: {response_text}")
-        except Exception as e:
-            self.logger.warning(f"[{self.__class__.__name__}] Could not read response body: {e}")
-        
+        """Validate API response and raise FatalAPIError if needed."""
         # Call parent's validate_response which will raise FatalAPIError if needed
         super().validate_response(response)
 
