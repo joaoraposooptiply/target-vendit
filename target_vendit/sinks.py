@@ -107,6 +107,49 @@ class BuyOrders(VenditSink):
     endpoint = "PrePurchaseOrders/Import"
     name = "BuyOrders"
 
+    def upsert_record(self, record: dict, context: dict):
+        """Send the record to Vendit API."""
+        state_updates = dict()
+
+        if not record:
+            return None, False, state_updates
+
+        try:
+            self.logger.info(f"[BuyOrders] Sending request to {self.endpoint} with payload: {json.dumps(record, indent=2, default=str)}")
+            
+            response = self.request_api(
+                "PUT",
+                endpoint=self.endpoint,
+                request_data=record
+            )
+
+            self.logger.info(f"[BuyOrders] API response status: {response.status_code}")
+            self.logger.info(f"[BuyOrders] API response body: {response.text[:500]}")  # First 500 chars
+
+            # Extract response ID
+            response_id = None
+            if response.status_code in [200, 201, 204]:
+                try:
+                    response_data = response.json()
+                    response_id = response_data.get("id")
+                    self.logger.info(f"[BuyOrders] Extracted response_id: {response_id}")
+                except (json.JSONDecodeError, AttributeError):
+                    pass
+
+                # Fallback to optiplyId from first item
+                if not response_id and record.get("items") and len(record["items"]) > 0:
+                    response_id = record["items"][0].get("optiplyId")
+                    self.logger.info(f"[BuyOrders] Using optiplyId as response_id: {response_id}")
+
+            return response_id, True, state_updates
+            
+        except Exception as e:
+            self.logger.error(f"[BuyOrders] Error sending record to API: {type(e).__name__}: {str(e)}")
+            import traceback
+            self.logger.error(f"[BuyOrders] Traceback: {traceback.format_exc()}")
+            state_updates["error"] = str(e)
+            return None, False, state_updates
+
     def preprocess_record(self, record: dict, context: dict) -> dict:
         """Build the payload for BuyOrders from line_items."""
         # If record already has 'items', it's already been preprocessed - return as-is
@@ -209,31 +252,3 @@ class BuyOrders(VenditSink):
             return None
 
         return {"items": items}
-
-    def upsert_record(self, record: dict, context: dict):
-        """Send the record to Vendit API."""
-        state_updates = dict()
-
-        if not record:
-            return None, False, state_updates
-
-        response = self.request_api(
-            "PUT",
-            endpoint=self.endpoint,
-            request_data=record
-        )
-
-        # Extract response ID
-        response_id = None
-        if response.status_code in [200, 201, 204]:
-            try:
-                response_data = response.json()
-                response_id = response_data.get("id")
-            except (json.JSONDecodeError, AttributeError):
-                pass
-
-            # Fallback to optiplyId from first item
-            if not response_id and record.get("items") and len(record["items"]) > 0:
-                response_id = record["items"][0].get("optiplyId")
-
-        return response_id, True, state_updates
