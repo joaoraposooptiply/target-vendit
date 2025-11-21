@@ -18,6 +18,10 @@ class TargetVendit(TargetHotglue):
         th.Property("api_url", th.StringType, default="https://api2.vendit.online"),
         th.Property("token", th.StringType, required=False),
         th.Property("api_key", th.StringType, required=False),
+        th.Property("vendit_api_key", th.StringType, required=False),
+        th.Property("username", th.StringType, required=False),
+        th.Property("password", th.StringType, required=False),
+        th.Property("oauth_url", th.StringType, required=False),
     ).to_dict()
 
 if __name__ == "__main__":

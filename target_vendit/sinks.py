@@ -59,20 +59,34 @@ class PrePurchaseOrders(VenditSink):
         elif isinstance(creation_datetime, str):
             # Parse string datetime and normalize to API format
             try:
-                # Clean up the string - remove trailing Z if present, handle +00:00
-                dt_str = creation_datetime.replace('Z', '').replace('+00:00', '').strip()
-                # Replace space with T if needed for ISO format
-                if ' ' in dt_str and 'T' not in dt_str:
-                    dt_str = dt_str.replace(' ', 'T')
-                # Parse ISO format
-                dt = datetime.fromisoformat(dt_str)
+                # Try parsing with fromisoformat first (handles most ISO formats)
+                dt = datetime.fromisoformat(creation_datetime.replace('Z', '+00:00'))
                 # Convert to UTC if timezone-aware, then format with milliseconds
                 if dt.tzinfo:
                     dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
                 creation_datetime = dt.isoformat(timespec='milliseconds') + "Z"
-            except Exception as e:
-                self.logger.warning(f"Failed to parse creationDatetime '{creation_datetime}': {e}, using current time")
-                creation_datetime = datetime.utcnow().isoformat(timespec='milliseconds') + "Z"
+            except (ValueError, AttributeError):
+                # Fallback: try manual parsing
+                try:
+                    # Clean up the string - remove trailing Z, handle timezone
+                    dt_str = creation_datetime.replace('Z', '').strip()
+                    # Remove timezone offset if present
+                    if '+' in dt_str:
+                        dt_str = dt_str.split('+')[0]
+                    elif dt_str.count('-') > 2:  # Has timezone like -05:00
+                        parts = dt_str.rsplit('-', 2)
+                        if len(parts) == 3 and ':' in parts[2]:
+                            dt_str = '-'.join(parts[:2])
+                    # Replace space with T if needed for ISO format
+                    if ' ' in dt_str and 'T' not in dt_str:
+                        dt_str = dt_str.replace(' ', 'T')
+                    # Parse ISO format
+                    dt = datetime.fromisoformat(dt_str)
+                    # Convert to UTC and format with milliseconds
+                    creation_datetime = dt.isoformat(timespec='milliseconds') + "Z"
+                except Exception as e:
+                    self.logger.warning(f"Failed to parse creationDatetime '{creation_datetime}': {e}, using current time")
+                    creation_datetime = datetime.utcnow().isoformat(timespec='milliseconds') + "Z"
         elif not creation_datetime:
             creation_datetime = datetime.utcnow().isoformat(timespec='milliseconds') + "Z"
 
@@ -168,16 +182,37 @@ class BuyOrders(VenditSink):
             
         except FatalAPIError as e:
             # Extract response details from the exception
-            error_msg = str(e)
+            error_msg = str(e) or repr(e)
             self.logger.error(f"[BuyOrders] FatalAPIError: {error_msg}")
             
-            # Try to get response from exception if available
+            # Log all exception attributes for debugging
+            self.logger.error(f"[BuyOrders] Exception attributes: {dir(e)}")
+            self.logger.error(f"[BuyOrders] Exception __dict__: {getattr(e, '__dict__', {})}")
+            
+            # Try multiple ways to get response information
+            response = None
             if hasattr(e, 'response') and e.response is not None:
-                self.logger.error(f"[BuyOrders] API response status: {e.response.status_code}")
-                self.logger.error(f"[BuyOrders] API response headers: {dict(e.response.headers)}")
-                self.logger.error(f"[BuyOrders] API response body: {e.response.text[:1000]}")
+                response = e.response
+            elif hasattr(e, '_response') and e._response is not None:
+                response = e._response
+            elif hasattr(e, 'args') and len(e.args) > 0:
+                # Sometimes response is passed as first arg
+                for arg in e.args:
+                    if hasattr(arg, 'status_code'):
+                        response = arg
+                        break
+            
+            if response:
+                self.logger.error(f"[BuyOrders] API response status: {response.status_code}")
+                self.logger.error(f"[BuyOrders] API response headers: {dict(response.headers)}")
+                try:
+                    self.logger.error(f"[BuyOrders] API response body: {response.text[:2000]}")
+                except Exception:
+                    self.logger.error(f"[BuyOrders] Could not read response body")
             elif hasattr(e, 'status_code'):
                 self.logger.error(f"[BuyOrders] API response status: {e.status_code}")
+            else:
+                self.logger.error(f"[BuyOrders] Could not extract response details from exception")
             
             import traceback
             self.logger.error(f"[BuyOrders] Traceback: {traceback.format_exc()}")
@@ -253,20 +288,34 @@ class BuyOrders(VenditSink):
         elif isinstance(creation_datetime, str):
             # Parse string datetime and normalize to API format
             try:
-                # Clean up the string - remove trailing Z if present, handle +00:00
-                dt_str = creation_datetime.replace('Z', '').replace('+00:00', '').strip()
-                # Replace space with T if needed for ISO format
-                if ' ' in dt_str and 'T' not in dt_str:
-                    dt_str = dt_str.replace(' ', 'T')
-                # Parse ISO format
-                dt = datetime.fromisoformat(dt_str)
+                # Try parsing with fromisoformat first (handles most ISO formats)
+                dt = datetime.fromisoformat(creation_datetime.replace('Z', '+00:00'))
                 # Convert to UTC if timezone-aware, then format with milliseconds
                 if dt.tzinfo:
                     dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
                 creation_datetime = dt.isoformat(timespec='milliseconds') + "Z"
-            except Exception as e:
-                self.logger.warning(f"Failed to parse creationDatetime '{creation_datetime}': {e}, using current time")
-                creation_datetime = datetime.utcnow().isoformat(timespec='milliseconds') + "Z"
+            except (ValueError, AttributeError):
+                # Fallback: try manual parsing
+                try:
+                    # Clean up the string - remove trailing Z, handle timezone
+                    dt_str = creation_datetime.replace('Z', '').strip()
+                    # Remove timezone offset if present
+                    if '+' in dt_str:
+                        dt_str = dt_str.split('+')[0]
+                    elif dt_str.count('-') > 2:  # Has timezone like -05:00
+                        parts = dt_str.rsplit('-', 2)
+                        if len(parts) == 3 and ':' in parts[2]:
+                            dt_str = '-'.join(parts[:2])
+                    # Replace space with T if needed for ISO format
+                    if ' ' in dt_str and 'T' not in dt_str:
+                        dt_str = dt_str.replace(' ', 'T')
+                    # Parse ISO format
+                    dt = datetime.fromisoformat(dt_str)
+                    # Convert to UTC and format with milliseconds
+                    creation_datetime = dt.isoformat(timespec='milliseconds') + "Z"
+                except Exception as e:
+                    self.logger.warning(f"Failed to parse creationDatetime '{creation_datetime}': {e}, using current time")
+                    creation_datetime = datetime.utcnow().isoformat(timespec='milliseconds') + "Z"
         elif not creation_datetime:
             creation_datetime = datetime.utcnow().isoformat(timespec='milliseconds') + "Z"
 

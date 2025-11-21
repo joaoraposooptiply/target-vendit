@@ -2,6 +2,8 @@
 
 from typing import Dict, Optional, List
 
+import requests
+from singer_sdk.exceptions import FatalAPIError
 from singer_sdk.plugin_base import PluginBase
 from target_hotglue.client import HotglueSink
 
@@ -63,4 +65,19 @@ class VenditSink(HotglueSink):
         
         # Call parent's process_record with the preprocessed record
         super().process_record(preprocessed, context)
+
+    def validate_response(self, response: requests.Response) -> None:
+        """Validate API response and log details before raising errors."""
+        # Log response details for debugging
+        self.logger.info(f"[{self.__class__.__name__}] API response status: {response.status_code}")
+        self.logger.info(f"[{self.__class__.__name__}] API response headers: {dict(response.headers)}")
+        
+        try:
+            response_text = response.text[:2000]  # First 2000 chars
+            self.logger.info(f"[{self.__class__.__name__}] API response body: {response_text}")
+        except Exception as e:
+            self.logger.warning(f"[{self.__class__.__name__}] Could not read response body: {e}")
+        
+        # Call parent's validate_response which will raise FatalAPIError if needed
+        super().validate_response(response)
 
