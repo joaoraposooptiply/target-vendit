@@ -109,6 +109,11 @@ class BuyOrders(VenditSink):
 
     def preprocess_record(self, record: dict, context: dict) -> dict:
         """Build the payload for BuyOrders from line_items."""
+        # If record already has 'items', it's already been preprocessed - return as-is
+        if "items" in record and "line_items" not in record:
+            self.logger.info("[BuyOrders] Record already preprocessed, returning as-is")
+            return record
+        
         # Log record safely (handle datetime objects)
         try:
             record_str = json.dumps(record, indent=2, default=str)
