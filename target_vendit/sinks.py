@@ -109,19 +109,34 @@ class BuyOrders(VenditSink):
 
     def preprocess_record(self, record: dict, context: dict) -> dict:
         """Build the payload for BuyOrders from line_items."""
+        self.logger.info(f"[BuyOrders] Received record: {json.dumps(record, indent=2)}")
+        
         items = []
 
         # Parse line_items
         line_items = record.get("line_items")
+        self.logger.info(f"[BuyOrders] line_items value: {line_items}, type: {type(line_items)}")
+        
+        # Check if line_items exists
+        if line_items is None:
+            self.logger.info(f"Skipping order with no line_items field. Record keys: {list(record.keys())}")
+            return None
+        
+        # Parse if it's a string
         if isinstance(line_items, str):
+            if not line_items.strip():  # Empty string
+                self.logger.info("Skipping order with empty line_items string")
+                return None
             try:
                 line_items = json.loads(line_items)
+                self.logger.info(f"[BuyOrders] Parsed line_items: {json.dumps(line_items, indent=2)}")
             except json.JSONDecodeError as e:
                 self.logger.error(f"Failed to parse line_items JSON: {e}")
                 return None
 
-        if not line_items:
-            self.logger.info("Skipping order with no line_items")
+        # Check if line_items is empty after parsing
+        if not line_items or (isinstance(line_items, list) and len(line_items) == 0):
+            self.logger.info(f"Skipping order with empty line_items after parsing")
             return None
 
         # Ensure line_items is a list
