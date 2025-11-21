@@ -3,6 +3,7 @@
 import json
 from datetime import datetime
 
+from singer_sdk.exceptions import FatalAPIError
 from target_vendit.client import VenditSink
 
 
@@ -143,8 +144,25 @@ class BuyOrders(VenditSink):
 
             return response_id, True, state_updates
             
+        except FatalAPIError as e:
+            # Extract response details from the exception
+            error_msg = str(e)
+            self.logger.error(f"[BuyOrders] FatalAPIError: {error_msg}")
+            
+            # Try to get response from exception if available
+            if hasattr(e, 'response') and e.response is not None:
+                self.logger.error(f"[BuyOrders] API response status: {e.response.status_code}")
+                self.logger.error(f"[BuyOrders] API response headers: {dict(e.response.headers)}")
+                self.logger.error(f"[BuyOrders] API response body: {e.response.text[:1000]}")
+            elif hasattr(e, 'status_code'):
+                self.logger.error(f"[BuyOrders] API response status: {e.status_code}")
+            
+            import traceback
+            self.logger.error(f"[BuyOrders] Traceback: {traceback.format_exc()}")
+            state_updates["error"] = error_msg
+            return None, False, state_updates
         except Exception as e:
-            self.logger.error(f"[BuyOrders] Error sending record to API: {type(e).__name__}: {str(e)}")
+            self.logger.error(f"[BuyOrders] Unexpected error sending record to API: {type(e).__name__}: {str(e)}")
             import traceback
             self.logger.error(f"[BuyOrders] Traceback: {traceback.format_exc()}")
             state_updates["error"] = str(e)
