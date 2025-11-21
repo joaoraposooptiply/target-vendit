@@ -39,6 +39,11 @@ class VenditSink(HotglueSink):
         api_url = self.config.get("api_url", "https://api2.vendit.online")
         api_url = api_url.rstrip("/")
         return f"{api_url}/VenditPublicApi"
+    
+    @property
+    def url_base(self) -> str:
+        """Alias for base_url in case parent class uses this property name."""
+        return self.base_url
 
     @property
     def http_headers(self) -> Dict[str, str]:
@@ -65,6 +70,56 @@ class VenditSink(HotglueSink):
         
         # Call parent's process_record with the preprocessed record
         super().process_record(preprocessed, context)
+
+    def request_api(
+        self,
+        method: str,
+        endpoint: str,
+        params: Optional[Dict] = None,
+        request_data: Optional[Dict] = None,
+        headers: Optional[Dict] = None,
+    ) -> requests.Response:
+        """Make an API request with correct URL construction for Vendit API."""
+        # Ensure endpoint doesn't have leading slash to avoid double slashes
+        endpoint = endpoint.lstrip("/")
+        # Construct full URL: base_url already includes /VenditPublicApi
+        full_url = f"{self.base_url}/{endpoint}"
+        
+        # Get headers (merge with any provided headers)
+        request_headers = self.http_headers.copy()
+        if headers:
+            request_headers.update(headers)
+        
+        self.logger.info(f"[{self.__class__.__name__}] Making {method} request to: {full_url}")
+        self.logger.info(f"[{self.__class__.__name__}] Headers: {dict(request_headers)}")
+        
+        # Make the request directly to ensure correct URL
+        try:
+            if method.upper() == "GET":
+                response = requests.get(full_url, params=params, headers=request_headers, json=request_data)
+            elif method.upper() == "POST":
+                response = requests.post(full_url, params=params, headers=request_headers, json=request_data)
+            elif method.upper() == "PUT":
+                response = requests.put(full_url, params=params, headers=request_headers, json=request_data)
+            elif method.upper() == "PATCH":
+                response = requests.patch(full_url, params=params, headers=request_headers, json=request_data)
+            elif method.upper() == "DELETE":
+                response = requests.delete(full_url, params=params, headers=request_headers, json=request_data)
+            else:
+                raise ValueError(f"Unsupported HTTP method: {method}")
+            
+            # Log the actual request URL
+            self.logger.info(f"[{self.__class__.__name__}] Actual request URL: {response.request.url}")
+            self.logger.info(f"[{self.__class__.__name__}] Response status: {response.status_code}")
+            
+            # Validate response (this will raise FatalAPIError if needed)
+            self.validate_response(response)
+            
+            return response
+            
+        except requests.exceptions.RequestException as e:
+            self.logger.error(f"[{self.__class__.__name__}] Request failed: {e}")
+            raise FatalAPIError(f"Request to {full_url} failed: {e}") from e
 
     def validate_response(self, response: requests.Response) -> None:
         """Validate API response and log details before raising errors."""
