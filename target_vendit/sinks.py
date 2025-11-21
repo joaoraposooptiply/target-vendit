@@ -1,7 +1,7 @@
 """Vendit target sink classes, which handle writing streams."""
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 
 from singer_sdk.exceptions import FatalAPIError
 from target_vendit.client import VenditSink
@@ -54,16 +54,21 @@ class PrePurchaseOrders(VenditSink):
         if isinstance(creation_datetime, datetime):
             # Convert datetime to UTC and format with milliseconds
             if creation_datetime.tzinfo:
-                creation_datetime = creation_datetime.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+                creation_datetime = creation_datetime.astimezone(timezone.utc).replace(tzinfo=None)
             creation_datetime = creation_datetime.isoformat(timespec='milliseconds') + "Z"
         elif isinstance(creation_datetime, str):
-            # Parse string datetime and normalize
+            # Parse string datetime and normalize to API format
             try:
-                from dateutil import parser
-                dt = parser.parse(creation_datetime)
-                # Convert to UTC and format with milliseconds
+                # Clean up the string - remove trailing Z if present, handle +00:00
+                dt_str = creation_datetime.replace('Z', '').replace('+00:00', '').strip()
+                # Replace space with T if needed for ISO format
+                if ' ' in dt_str and 'T' not in dt_str:
+                    dt_str = dt_str.replace(' ', 'T')
+                # Parse ISO format
+                dt = datetime.fromisoformat(dt_str)
+                # Convert to UTC if timezone-aware, then format with milliseconds
                 if dt.tzinfo:
-                    dt = dt.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+                    dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
                 creation_datetime = dt.isoformat(timespec='milliseconds') + "Z"
             except Exception as e:
                 self.logger.warning(f"Failed to parse creationDatetime '{creation_datetime}': {e}, using current time")
@@ -243,7 +248,7 @@ class BuyOrders(VenditSink):
         if isinstance(creation_datetime, datetime):
             # Convert datetime to UTC and format with milliseconds
             if creation_datetime.tzinfo:
-                creation_datetime = creation_datetime.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+                creation_datetime = creation_datetime.astimezone(timezone.utc).replace(tzinfo=None)
             creation_datetime = creation_datetime.isoformat(timespec='milliseconds') + "Z"
         elif isinstance(creation_datetime, str):
             # Parse string datetime and normalize to API format
@@ -257,7 +262,7 @@ class BuyOrders(VenditSink):
                 dt = datetime.fromisoformat(dt_str)
                 # Convert to UTC if timezone-aware, then format with milliseconds
                 if dt.tzinfo:
-                    dt = dt.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+                    dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
                 creation_datetime = dt.isoformat(timespec='milliseconds') + "Z"
             except Exception as e:
                 self.logger.warning(f"Failed to parse creationDatetime '{creation_datetime}': {e}, using current time")
