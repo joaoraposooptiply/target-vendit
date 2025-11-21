@@ -52,3 +52,15 @@ class VenditSink(HotglueSink):
         """Preprocess record before sending."""
         return record
 
+    def process_record(self, record: dict, context: dict) -> None:
+        """Process a record, handling None from preprocess_record."""
+        # Preprocess the record
+        preprocessed = self.preprocess_record(record, context)
+        
+        # If preprocess_record returns None, skip this record
+        if preprocessed is None:
+            return
+        
+        # Call parent's process_record with the preprocessed record
+        super().process_record(preprocessed, context)
+

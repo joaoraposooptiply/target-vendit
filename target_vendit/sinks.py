@@ -10,10 +10,15 @@ class PrePurchaseOrders(VenditSink):
     """PrePurchaseOrders sink for Vendit API."""
 
     endpoint = "PrePurchaseOrders/Import"
-    name = "buyOrders"
+    name = "PrePurchaseOrders"
 
     def preprocess_record(self, record: dict, context: dict) -> dict:
         """Build the payload for PrePurchaseOrders."""
+        # If this has line_items, it's actually a BuyOrders record - skip it
+        # (BuyOrders sink will handle it)
+        if "line_items" in record and record.get("line_items"):
+            return None
+        
         items = []
 
         # Get productId
