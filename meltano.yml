@@ -1,0 +1,28 @@
+version: 1
+send_anonymous_usage_stats: true
+project_id: target-vendit
+plugins:
+  extractors: []
+  loaders:
+  - name: target-vendit
+    namespace: target_vendit
+    pip_url: -e .
+    capabilities:
+    - state
+    - catalog
+    - discover
+    config:
+      start_date: '2010-01-01T00:00:00Z'
+    settings:
+    - name: api_url
+      description: The base URL for the Vendit API service
+      default: "https://api2.vendit.online"
+    - name: token
+      kind: password
+      description: Vendit API Token
+    - name: api_key
+      kind: password
+      description: Vendit API Key
+    - name: start_date
+      value: '2010-01-01T00:00:00Z'
+
