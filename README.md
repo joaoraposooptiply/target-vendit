@@ -1,134 +1,128 @@
 # target-vendit
 
-A Singer target for sending data to the Vendit API. This target processes buy orders and converts them into pre-purchase orders for the Vendit system.
+`target-vendit` is a Singer target for Vendit.
 
-## Features
-
-- **Preprocessing Support**: Automatically converts buy orders with line items into individual pre-purchase orders
-- **Flexible Data Handling**: Supports multiple data formats and field mappings
-- **Batch Processing**: Efficiently processes multiple records in batches
-- **Production Ready**: Configured for production Vendit API endpoints
+Built with the [Meltano Target SDK](https://sdk.meltano.com).
 
 ## Installation
 
 ```bash
-pip install target-vendit
+pipx install target-vendit
+```
+
+Or install from source:
+
+```bash
+pipx install poetry
+poetry install
 ```
 
 ## Configuration
 
-The target requires the following configuration:
+### Accepted Config Options
 
+- `api_url` (optional): The base URL for the Vendit API service (default: "https://api2.vendit.online"). Set this to a staging URL if needed.
+  - Production: `https://api2.vendit.online`
+  - Staging: `https://api.staging.vendit.online`
+- `token` (required): Vendit API Token
+- `api_key` (required): Vendit API Key
+
+### Example Configuration
+
+**Production:**
 ```json
 {
-  "vendit_api_key": "your_api_key",
-  "username": "your_username", 
-  "password": "your_password",
   "api_url": "https://api2.vendit.online",
-  "batch_size": 100
+  "token": "your-token",
+  "api_key": "your-api-key"
 }
 ```
 
-### Configuration Options
+**Staging:**
+```json
+{
+  "api_url": "https://api.staging.vendit.online",
+  "token": "your-token",
+  "api_key": "your-api-key"
+}
+```
 
-- `vendit_api_key` (required): Your Vendit API key
-- `username` (required): Your Vendit username
-- `password` (required): Your Vendit password  
-- `api_url` (optional): Vendit API URL (defaults to https://api2.vendit.online)
-- `batch_size` (optional): Number of records to process in each batch (default: 100)
+A full list of supported settings and capabilities for this
+target is available by running:
+
+```bash
+target-vendit --about
+```
+
+### Configure using environment variables
+
+This Singer target will automatically import any environment variables within the working directory's
+`.env` if the `--config=ENV` is provided, such that config values will be considered if a matching
+environment variable is set either in the terminal context or in the `.env` file.
 
 ## Usage
 
-### Basic Usage
+You can easily run `target-vendit` by itself or in a pipeline using [Meltano](https://meltano.com/).
+
+### Executing the Target Directly
 
 ```bash
-target-vendit --config config.json < input.jsonl
+target-vendit --version
+target-vendit --help
+tap-example | target-vendit --config /path/to/target-vendit-config.json
 ```
 
-### With Singer Tap
+## Developer Resources
+
+### Initialize your Development Environment
 
 ```bash
-tap-source --config tap_config.json | target-vendit --config target_config.json
+pipx install poetry
+poetry install
 ```
 
-## Data Processing
+### Create and Run Tests
 
-The target automatically handles different data structures:
-
-### Buy Orders with Line Items
-
-Input buy orders with line items are automatically expanded into individual pre-purchase orders:
-
-```json
-{
-  "id": 12345,
-  "transaction_date": "2025-01-15T10:00:00Z",
-  "line_items": "[{\"product_remoteId\": 240, \"quantity\": 5, \"sku\": \"PROD-001\"}]"
-}
-```
-
-Becomes:
-
-```json
-{
-  "items": [
-    {
-      "productId": 240,
-      "amount": 5,
-      "optiplyId": "12345",
-      "creationDatetime": "2025-01-15T10:00:00Z"
-    }
-  ]
-}
-```
-
-### Direct Pre-Purchase Orders
-
-Direct pre-purchase order records are processed as-is:
-
-```json
-{
-  "productId": 240,
-  "amount": 5,
-  "optiplyId": "12345"
-}
-```
-
-## Field Mapping
-
-The target automatically maps common field names:
-
-- `id` or `buyOrderId` → `optiplyId`
-- `transaction_date` or `placedDate` or `created_at` → `creationDatetime`
-- `product_remoteId` → `productId`
-- `quantity` → `amount`
-
-## Development
-
-### Setup
+Create tests within the `target_vendit/tests` subfolder and then run:
 
 ```bash
-git clone <repository>
+poetry run pytest
+```
+
+You can also test the `target-vendit` CLI interface directly using `poetry run`:
+
+```bash
+poetry run target-vendit --help
+```
+
+### Testing with [Meltano](https://meltano.com/)
+
+_**Note:** This target will work in any Singer environment and does not require Meltano.
+Examples here are for convenience and to streamline end-to-end orchestration scenarios._
+
+Your project comes with a custom `meltano.yml` project file already created. Open the `meltano.yml` and follow any _"TODO"_ items listed in
+the file.
+
+Next, install Meltano (if you haven't already) and any needed plugins:
+
+```bash
+# Install meltano
+pipx install meltano
+# Initialize meltano within this directory
 cd target-vendit
-pip install -e .
+meltano install
 ```
 
-### Code Quality
+Now you can test and orchestrate using Meltano:
 
 ```bash
-# Format code
-black target_vendit/
-
-# Sort imports
-isort target_vendit/
-
-# Type checking
-mypy target_vendit/
-
-# Linting
-flake8 target_vendit/
+# Test invocation:
+meltano invoke target-vendit --version
+# OR run a test `elt` pipeline:
+meltano elt tap-example target-vendit
 ```
 
-## License
+### SDK Dev Guide
 
-Apache License 2.0
+See the [dev guide](https://sdk.meltano.com/en/latest/dev_guide.html) for more instructions on how to use the Meltano SDK to
+develop your own Singer taps and targets.
