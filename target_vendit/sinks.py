@@ -252,6 +252,11 @@ class BuyOrders(VenditSink):
             }
             if optiply_id:
                 item["optiplyId"] = str(optiply_id)
+            
+            # Add office ID if configured (default warehouse for buy order export)
+            office_id = self.config.get("default_export_buyOrder_warehouseId")
+            if office_id is not None:
+                item["officeId"] = int(office_id)
 
             # Send each line item as a separate request
             single_item_payload = {"items": [item]}
