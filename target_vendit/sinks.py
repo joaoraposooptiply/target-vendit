@@ -1,10 +1,14 @@
 """Vendit target sink classes, which handle writing streams."""
 
 import json
+import uuid
 from datetime import datetime, timezone
 
 from singer_sdk.exceptions import FatalAPIError
 from target_vendit.client import VenditSink
+
+# Namespace UUID for generating deterministic UUIDs from Optiply line IDs
+OPTIPLY_NAMESPACE = uuid.UUID('6ba7b810-9dad-11d1-80b4-00c04fd430c8')
 
 
 class PrePurchaseOrders(VenditSink):
@@ -244,7 +248,7 @@ class BuyOrders(VenditSink):
                 self.logger.warning(f"Line item missing amount/quantity, skipping: {line_item}")
                 continue
 
-            # Get line_id for unique identification
+            # Get line_id and generate a proper UUID from it
             line_id = line_item.get("lineId") or line_item.get("line_id")
 
             # Create payload with single item
@@ -254,9 +258,10 @@ class BuyOrders(VenditSink):
                 "creationDatetime": creation_datetime,
             }
             
-            # Add lineId if available (prevents Vendit from auto-generating long identifiers)
+            # Generate a valid UUID from the Optiply line_id (Vendit requires UUID format)
             if line_id:
-                item["lineId"] = str(line_id)
+                line_uuid = uuid.uuid5(OPTIPLY_NAMESPACE, str(line_id))
+                item["lineId"] = str(line_uuid)
             
             if optiply_id:
                 item["optiplyId"] = str(optiply_id)
