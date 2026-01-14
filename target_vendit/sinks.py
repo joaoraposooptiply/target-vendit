@@ -244,12 +244,20 @@ class BuyOrders(VenditSink):
                 self.logger.warning(f"Line item missing amount/quantity, skipping: {line_item}")
                 continue
 
+            # Get line_id for unique identification
+            line_id = line_item.get("lineId") or line_item.get("line_id")
+
             # Create payload with single item
             item = {
                 "productId": int(product_id),
                 "amount": int(amount),
                 "creationDatetime": creation_datetime,
             }
+            
+            # Add lineId if available (prevents Vendit from auto-generating long identifiers)
+            if line_id:
+                item["lineId"] = str(line_id)
+            
             if optiply_id:
                 item["optiplyId"] = str(optiply_id)
             
