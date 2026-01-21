@@ -222,6 +222,13 @@ class BuyOrders(VenditSink):
             or record.get("id")
         )
 
+        # Get target supplier ID from buy order
+        target_supplier_id = (
+            record.get("targetSupplierId")
+            or record.get("target_supplier_id")
+            or record.get("supplier_remoteId")
+        )
+
         # Process each line item as a separate request
         for line_item in line_items:
             # Get productId
@@ -252,6 +259,10 @@ class BuyOrders(VenditSink):
             }
             if optiply_id:
                 item["optiplyId"] = str(optiply_id)
+            
+            # Add target supplier ID
+            if target_supplier_id:
+                item["targetSupplierId"] = int(target_supplier_id)
 
             # Add office ID if configured (default warehouse for buy order export)
             office_id = self.config.get("default_export_buyOrder_warehouseId")
