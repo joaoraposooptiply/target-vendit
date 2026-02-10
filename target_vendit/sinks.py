@@ -253,6 +253,7 @@ class BuyOrders(VenditSink):
             }
             if optiply_id:
                 item["optiplyId"] = str(optiply_id)
+                item["orderReference"] = str(optiply_id)
 
             # Send each line item as a separate request
             single_item_payload = {"items": [item]}
