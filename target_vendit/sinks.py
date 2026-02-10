@@ -104,6 +104,7 @@ class PrePurchaseOrders(VenditSink):
         }
         if optiply_id:
             item["optiplyId"] = str(optiply_id)
+            item["orderReference"] = str(optiply_id)
 
         items.append(item)
 
