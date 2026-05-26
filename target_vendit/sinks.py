@@ -7,6 +7,21 @@ from singer_sdk.exceptions import FatalAPIError
 from target_vendit.client import VenditSink
 
 
+def _first_present(*values):
+    """Return the first value that is not None or empty string."""
+    for value in values:
+        if value is not None and value != "":
+            return value
+    return None
+
+
+def _coerce_price(value):
+    """Convert a price-like value to float, preserving explicit zero."""
+    if value is None or value == "":
+        return None
+    return float(value)
+
+
 class PrePurchaseOrders(VenditSink):
     """PrePurchaseOrders sink for Vendit API."""
 
@@ -102,6 +117,17 @@ class PrePurchaseOrders(VenditSink):
             "amount": int(amount),
             "creationDatetime": creation_datetime,
         }
+
+        price = _coerce_price(
+            _first_present(
+                record.get("unit_price"),
+                record.get("price"),
+                record.get("purchase_price"),
+            )
+        )
+        if price is not None:
+            item["purchasePriceEx"] = price
+
         if optiply_id:
             item["optiplyId"] = str(optiply_id)
 
@@ -257,6 +283,17 @@ class BuyOrders(VenditSink):
                 "amount": int(amount),
                 "creationDatetime": creation_datetime,
             }
+
+            price = _coerce_price(
+                _first_present(
+                    line_item.get("unit_price"),
+                    line_item.get("price"),
+                    line_item.get("purchase_price"),
+                )
+            )
+            if price is not None:
+                item["purchasePriceEx"] = price
+
             if optiply_id:
                 item["optiplyId"] = str(optiply_id)
             
