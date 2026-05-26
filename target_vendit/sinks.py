@@ -130,6 +130,7 @@ class PrePurchaseOrders(VenditSink):
 
         if optiply_id:
             item["optiplyId"] = str(optiply_id)
+            item["orderReference"] = str(optiply_id)
 
         items.append(item)
 
@@ -296,7 +297,8 @@ class BuyOrders(VenditSink):
 
             if optiply_id:
                 item["optiplyId"] = str(optiply_id)
-            
+                item["orderReference"] = str(optiply_id)
+
             # Add target supplier ID
             if target_supplier_id:
                 item["targetSupplierId"] = int(target_supplier_id)
